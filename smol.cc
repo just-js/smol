@@ -1,12 +1,12 @@
-#include "just.h"
+#include "smol.h"
 
-std::map<std::string, just::builtin*> just::builtins;
-std::map<std::string, just::register_plugin> just::modules;
+std::map<std::string, NAMESPACE::builtin*> NAMESPACE::builtins;
+std::map<std::string, NAMESPACE::register_plugin> NAMESPACE::modules;
 uint32_t scriptId = 1;
 uint64_t* hrtimeptr;
 clock_t clock_id = CLOCK_MONOTONIC;
 
-ssize_t just::process_memory_usage() {
+ssize_t NAMESPACE::process_memory_usage() {
   char buf[1024];
   const char* s = NULL;
   ssize_t n = 0;
@@ -47,13 +47,13 @@ err:
   return 0;
 }
 
-uint64_t just::hrtime() {
+uint64_t NAMESPACE::hrtime() {
   struct timespec t;
   if (clock_gettime(clock_id, &t)) return 0;
   return (t.tv_sec * (uint64_t) 1e9) + t.tv_nsec;
 }
 
-void just::builtins_add (const char* name, const char* source, 
+void NAMESPACE::builtins_add (const char* name, const char* source, 
   unsigned int size) {
   struct builtin* b = new builtin();
   b->size = size;
@@ -61,28 +61,28 @@ void just::builtins_add (const char* name, const char* source,
   builtins[name] = b;
 }
 
-void just::SET_METHOD(Isolate *isolate, Local<ObjectTemplate> 
+void NAMESPACE::SET_METHOD(Isolate *isolate, Local<ObjectTemplate> 
   recv, const char *name, FunctionCallback callback) {
   recv->Set(String::NewFromUtf8(isolate, name, 
     NewStringType::kInternalized).ToLocalChecked(), 
     FunctionTemplate::New(isolate, callback));
 }
 
-void just::SET_MODULE(Isolate *isolate, Local<ObjectTemplate> 
+void NAMESPACE::SET_MODULE(Isolate *isolate, Local<ObjectTemplate> 
   recv, const char *name, Local<ObjectTemplate> module) {
   recv->Set(String::NewFromUtf8(isolate, name, 
     NewStringType::kInternalized).ToLocalChecked(), 
     module);
 }
 
-void just::SET_VALUE(Isolate *isolate, Local<ObjectTemplate> 
+void NAMESPACE::SET_VALUE(Isolate *isolate, Local<ObjectTemplate> 
   recv, const char *name, Local<Value> value) {
   recv->Set(String::NewFromUtf8(isolate, name, 
     NewStringType::kInternalized).ToLocalChecked(), 
     value);
 }
 
-void just::PrintStackTrace(Isolate* isolate, const TryCatch& try_catch) {
+void NAMESPACE::PrintStackTrace(Isolate* isolate, const TryCatch& try_catch) {
   HandleScope handleScope(isolate);
   Local<Message> message = try_catch.Message();
   Local<StackTrace> stack = message->GetStackTrace();
@@ -120,10 +120,9 @@ void just::PrintStackTrace(Isolate* isolate, const TryCatch& try_catch) {
   fflush(stderr);
 }
 
-void just::PromiseRejectCallback(PromiseRejectMessage data) {
+void NAMESPACE::PromiseRejectCallback(PromiseRejectMessage data) {
   if (data.GetEvent() == v8::kPromiseRejectAfterResolved ||
       data.GetEvent() == v8::kPromiseResolveAfterResolved) {
-    // Ignore reject/resolve after resolved.
     return;
   }
   Local<Promise> promise = data.GetPromise();
@@ -133,13 +132,11 @@ void just::PromiseRejectCallback(PromiseRejectMessage data) {
   }
   Local<Value> exception = data.GetValue();
   v8::Local<Message> message;
-  // Assume that all objects are stack-traces.
   if (exception->IsObject()) {
     message = v8::Exception::CreateMessage(isolate, exception);
   }
   if (!exception->IsNativeError() &&
       (message.IsEmpty() || message->GetStackTrace().IsEmpty())) {
-    // If there is no real Error object, manually create a stack trace.
     exception = v8::Exception::Error(
         v8::String::NewFromUtf8Literal(isolate, "Unhandled Promise."));
     message = Exception::CreateMessage(isolate, exception);
@@ -166,7 +163,7 @@ void just::PromiseRejectCallback(PromiseRejectMessage data) {
   }
 }
 
-void just::FreeMemory(void* buf, size_t length, void* data) {
+void NAMESPACE::FreeMemory(void* buf, size_t length, void* data) {
   free(buf);
 }
 
@@ -193,9 +190,9 @@ v8::MaybeLocal<v8::Module> loadModule(char code[],
   v8::Local<v8::String> vcode =
       v8::String::NewFromUtf8(cx->GetIsolate(), code).ToLocalChecked();
   v8::Local<v8::PrimitiveArray> opts =
-      v8::PrimitiveArray::New(cx->GetIsolate(), just::HostDefinedOptions::kLength);
-  opts->Set(cx->GetIsolate(), just::HostDefinedOptions::kType,
-                            v8::Number::New(cx->GetIsolate(), just::ScriptType::kModule));
+      v8::PrimitiveArray::New(cx->GetIsolate(), NAMESPACE::HostDefinedOptions::kLength);
+  opts->Set(cx->GetIsolate(), NAMESPACE::HostDefinedOptions::kType,
+                            v8::Number::New(cx->GetIsolate(), NAMESPACE::ScriptType::kModule));
   v8::ScriptOrigin origin(cx->GetIsolate(), v8::String::NewFromUtf8(cx->GetIsolate(), name).ToLocalChecked(), // resource name
     0, // line offset
     0,  // column offset
@@ -213,23 +210,22 @@ v8::MaybeLocal<v8::Module> loadModule(char code[],
   return mod;
 }
 
-// lifted from here: https://gist.github.com/surusek/4c05e4dcac6b82d18a1a28e6742fc23e
-v8::MaybeLocal<v8::Module> just::OnModuleInstantiate(v8::Local<v8::Context> context,
-                                       v8::Local<v8::String> specifier,
-                                       v8::Local<v8::FixedArray> import_assertions, 
-                                       v8::Local<v8::Module> referrer) {
+v8::MaybeLocal<v8::Module> NAMESPACE::OnModuleInstantiate(v8::Local<v8::Context> context,
+  v8::Local<v8::String> specifier,
+  v8::Local<v8::FixedArray> import_assertions, 
+  v8::Local<v8::Module> referrer) {
   v8::String::Utf8Value str(context->GetIsolate(), specifier);
   return loadModule(readFile(*str), *str, context);
 }
 
 v8::Local<v8::Module> checkModule(v8::MaybeLocal<v8::Module> maybeModule,
-                                  v8::Local<v8::Context> cx) {
+  v8::Local<v8::Context> cx) {
   v8::Local<v8::Module> mod;
   if (!maybeModule.ToLocal(&mod)) {
     printf("Error loading module!\n");
     exit(EXIT_FAILURE);
   }
-  v8::Maybe<bool> result = mod->InstantiateModule(cx, just::OnModuleInstantiate);
+  v8::Maybe<bool> result = mod->InstantiateModule(cx, NAMESPACE::OnModuleInstantiate);
   if (result.IsNothing()) {
     printf("\nCan't instantiate module.\n");
     exit(EXIT_FAILURE);
@@ -238,8 +234,8 @@ v8::Local<v8::Module> checkModule(v8::MaybeLocal<v8::Module> maybeModule,
 }
 
 v8::Local<v8::Value> execModule(v8::Local<v8::Module> mod,
-                                v8::Local<v8::Context> cx,
-                                bool nsObject) {
+  v8::Local<v8::Context> cx,
+  bool nsObject) {
   v8::Local<v8::Value> retValue;
   if (!mod->Evaluate(cx).ToLocal(&retValue)) {
     printf("Error evaluating module!\n");
@@ -252,9 +248,9 @@ v8::Local<v8::Value> execModule(v8::Local<v8::Module> mod,
 }
 
 v8::MaybeLocal<v8::Promise> OnDynamicImport(v8::Local<v8::Context> context,
-                                        v8::Local<v8::ScriptOrModule> referrer,
-                                        v8::Local<v8::String> specifier,
-                                        v8::Local<v8::FixedArray> import_assertions) {
+  v8::Local<v8::ScriptOrModule> referrer,
+  v8::Local<v8::String> specifier,
+  v8::Local<v8::FixedArray> import_assertions) {
   v8::Local<v8::Promise::Resolver> resolver =
       v8::Promise::Resolver::New(context).ToLocalChecked();
   v8::MaybeLocal<v8::Promise> promise(resolver->GetPromise());
@@ -266,10 +262,10 @@ v8::MaybeLocal<v8::Promise> OnDynamicImport(v8::Local<v8::Context> context,
   return promise;
 }
 
-int just::CreateIsolate(int argc, char** argv, 
+int NAMESPACE::CreateIsolate(int argc, char** argv, 
   const char* main_src, unsigned int main_len, 
   const char* js, unsigned int js_len, struct iovec* buf, int fd,
-  uint64_t start) {
+  uint64_t start, const char* name_space, const char* scriptname) {
   Isolate::CreateParams create_params;
   int statusCode = 0;
   create_params.array_buffer_allocator = 
@@ -282,10 +278,10 @@ int just::CreateIsolate(int argc, char** argv,
     isolate->SetCaptureStackTraceForUncaughtExceptions(true, 1000, 
       StackTrace::kDetailed);
     Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
-    Local<ObjectTemplate> just = ObjectTemplate::New(isolate);
-    just::Init(isolate, just);
-    global->Set(String::NewFromUtf8Literal(isolate, "just", 
-      NewStringType::kNormal), just);
+    Local<ObjectTemplate> runtime = ObjectTemplate::New(isolate);
+    NAMESPACE::Init(isolate, runtime);
+    global->Set(String::NewFromUtf8(isolate, name_space, 
+      NewStringType::kInternalized, strnlen(name_space, 256)).ToLocalChecked(), runtime);
     Local<Context> context = Context::New(isolate, NULL, global);
     Context::Scope context_scope(context);
     isolate->SetPromiseRejectCallback(PromiseRejectCallback);
@@ -300,45 +296,43 @@ int just::CreateIsolate(int argc, char** argv,
       "global", 
       NewStringType::kNormal), globalInstance).Check();
     Local<Value> obj = globalInstance->Get(context, 
-      String::NewFromUtf8Literal(
-        isolate, "just", 
-        NewStringType::kNormal)).ToLocalChecked();
-    Local<Object> justInstance = Local<Object>::Cast(obj);
+      String::NewFromUtf8(
+        isolate, name_space, 
+        NewStringType::kInternalized, strnlen(name_space, 256)).ToLocalChecked()).ToLocalChecked();
+    Local<Object> runtimeInstance = Local<Object>::Cast(obj);
     if (buf != NULL) {
       std::unique_ptr<BackingStore> backing = SharedArrayBuffer::NewBackingStore(
           buf->iov_base, buf->iov_len, [](void*, size_t, void*){}, nullptr);
       Local<SharedArrayBuffer> ab = SharedArrayBuffer::New(isolate, std::move(backing));
-      justInstance->Set(context, String::NewFromUtf8Literal(isolate, 
+      runtimeInstance->Set(context, String::NewFromUtf8Literal(isolate, 
         "buffer", NewStringType::kNormal), ab).Check();
     }
     if (start > 0) {
-      justInstance->Set(context, String::NewFromUtf8Literal(isolate, "start", 
+      runtimeInstance->Set(context, String::NewFromUtf8Literal(isolate, "start", 
         NewStringType::kNormal), 
         BigInt::New(isolate, start)).Check();
     }
     if (fd != 0) {
-      justInstance->Set(context, String::NewFromUtf8Literal(isolate, "fd", 
+      runtimeInstance->Set(context, String::NewFromUtf8Literal(isolate, "fd", 
         NewStringType::kNormal), 
         Integer::New(isolate, fd)).Check();
     }
-    justInstance->Set(context, String::NewFromUtf8Literal(isolate, "args", 
+    runtimeInstance->Set(context, String::NewFromUtf8Literal(isolate, "args", 
       NewStringType::kNormal), arguments).Check();
     if (js_len > 0) {
-      justInstance->Set(context, String::NewFromUtf8Literal(isolate, 
+      runtimeInstance->Set(context, String::NewFromUtf8Literal(isolate, 
         "workerSource", NewStringType::kNormal), 
         String::NewFromUtf8(isolate, js, NewStringType::kNormal, 
         js_len).ToLocalChecked()).Check();
     }
     TryCatch try_catch(isolate);
-
     Local<v8::PrimitiveArray> opts =
-        v8::PrimitiveArray::New(isolate, just::HostDefinedOptions::kLength);
-    opts->Set(isolate, just::HostDefinedOptions::kType, 
-      v8::Number::New(isolate, just::ScriptType::kModule));
+        v8::PrimitiveArray::New(isolate, NAMESPACE::HostDefinedOptions::kLength);
+    opts->Set(isolate, NAMESPACE::HostDefinedOptions::kType, 
+      v8::Number::New(isolate, NAMESPACE::ScriptType::kModule));
     ScriptOrigin baseorigin(
       isolate,
-      String::NewFromUtf8Literal(isolate, "just.js", 
-      NewStringType::kInternalized), // resource name
+      String::NewFromUtf8(isolate, scriptname, NewStringType::kInternalized, strnlen(scriptname, 1024)).ToLocalChecked(),
       0, // line offset
       0,  // column offset
       false, // is shared cross-origin
@@ -358,7 +352,7 @@ int just::CreateIsolate(int argc, char** argv,
       PrintStackTrace(isolate, try_catch);
       return 1;
     }
-    Maybe<bool> ok2 = module->InstantiateModule(context, just::OnModuleInstantiate);
+    Maybe<bool> ok2 = module->InstantiateModule(context, NAMESPACE::OnModuleInstantiate);
     if (ok2.IsNothing()) {
       if (try_catch.HasCaught() && !try_catch.HasTerminated()) {
         try_catch.ReThrow();
@@ -381,7 +375,7 @@ int just::CreateIsolate(int argc, char** argv,
         statusCode = result.ToLocalChecked()->Uint32Value(context).ToChecked();
       }
       if (try_catch.HasCaught() && !try_catch.HasTerminated()) {
-        just::PrintStackTrace(isolate, try_catch);
+        NAMESPACE::PrintStackTrace(isolate, try_catch);
         return 2;
       }
       statusCode = result.ToLocalChecked()->Uint32Value(context).ToChecked();
@@ -400,12 +394,12 @@ int just::CreateIsolate(int argc, char** argv,
   return statusCode;
 }
 
-int just::CreateIsolate(int argc, char** argv, const char* main_src, 
+int NAMESPACE::CreateIsolate(int argc, char** argv, const char* main_src, 
   unsigned int main_len, uint64_t start) {
-  return CreateIsolate(argc, argv, main_src, main_len, NULL, 0, NULL, 0, start);
+  return CreateIsolate(argc, argv, main_src, main_len, NULL, 0, NULL, 0, start, "smol", "main.js");
 }
 
-void just::Print(const FunctionCallbackInfo<Value> &args) {
+void NAMESPACE::Print(const FunctionCallbackInfo<Value> &args) {
   Isolate *isolate = args.GetIsolate();
   if (args[0].IsEmpty()) return;
   String::Utf8Value str(args.GetIsolate(), args[0]);
@@ -421,7 +415,7 @@ void just::Print(const FunctionCallbackInfo<Value> &args) {
   }
 }
 
-void just::Error(const FunctionCallbackInfo<Value> &args) {
+void NAMESPACE::Error(const FunctionCallbackInfo<Value> &args) {
   Isolate *isolate = args.GetIsolate();
   if (args[0].IsEmpty()) return;
   String::Utf8Value str(args.GetIsolate(), args[0]);
@@ -437,14 +431,14 @@ void just::Error(const FunctionCallbackInfo<Value> &args) {
   }
 }
 
-void just::Load(const FunctionCallbackInfo<Value> &args) {
+void NAMESPACE::Load(const FunctionCallbackInfo<Value> &args) {
   Isolate *isolate = args.GetIsolate();
   Local<Context> context = isolate->GetCurrentContext();
   Local<ObjectTemplate> exports = ObjectTemplate::New(isolate);
   if (args[0]->IsString()) {
     String::Utf8Value name(isolate, args[0]);
-    auto iter = just::modules.find(*name);
-    if (iter == just::modules.end()) {
+    auto iter = NAMESPACE::modules.find(*name);
+    if (iter == NAMESPACE::modules.end()) {
       return;
     } else {
       register_plugin _init = (*iter->second);
@@ -461,10 +455,10 @@ void just::Load(const FunctionCallbackInfo<Value> &args) {
   args.GetReturnValue().Set(exports->NewInstance(context).ToLocalChecked());
 }
 
-void just::Builtin(const FunctionCallbackInfo<Value> &args) {
+void NAMESPACE::Builtin(const FunctionCallbackInfo<Value> &args) {
   Isolate *isolate = args.GetIsolate();
   String::Utf8Value name(isolate, args[0]);
-  just::builtin* b = builtins[*name];
+  NAMESPACE::builtin* b = builtins[*name];
   if (b == nullptr) {
     args.GetReturnValue().Set(Null(isolate));
     return;
@@ -474,18 +468,15 @@ void just::Builtin(const FunctionCallbackInfo<Value> &args) {
       NewStringType::kNormal, b->size).ToLocalChecked());
     return;
   }
-
   std::unique_ptr<BackingStore> backing = SharedArrayBuffer::NewBackingStore(
       (void*)b->source, b->size, [](void*, size_t, void*){}, nullptr);
   Local<SharedArrayBuffer> ab = SharedArrayBuffer::New(isolate, std::move(backing));
-
-  //Local<ArrayBuffer> ab = ArrayBuffer::New(isolate, (void*)b->source, b->size, v8::ArrayBufferCreationMode::kExternalized);
   args.GetReturnValue().Set(ab);
 }
 
-void just::MemoryUsage(const FunctionCallbackInfo<Value> &args) {
+void NAMESPACE::MemoryUsage(const FunctionCallbackInfo<Value> &args) {
   Isolate *isolate = args.GetIsolate();
-  ssize_t rss = just::process_memory_usage();
+  ssize_t rss = NAMESPACE::process_memory_usage();
   HeapStatistics v8_heap_stats;
   isolate->GetHeapStatistics(&v8_heap_stats);
   Local<BigUint64Array> array;
@@ -516,25 +507,25 @@ void just::MemoryUsage(const FunctionCallbackInfo<Value> &args) {
   args.GetReturnValue().Set(array);
 }
 
-void just::Sleep(const FunctionCallbackInfo<Value> &args) {
+void NAMESPACE::Sleep(const FunctionCallbackInfo<Value> &args) {
   sleep(Local<Integer>::Cast(args[0])->Value());
 }
 
-void just::Exit(const FunctionCallbackInfo<Value>& args) {
+void NAMESPACE::Exit(const FunctionCallbackInfo<Value>& args) {
   exit(Local<Integer>::Cast(args[0])->Value());
 }
 
-void just::PID(const FunctionCallbackInfo<Value> &args) {
+void NAMESPACE::PID(const FunctionCallbackInfo<Value> &args) {
   args.GetReturnValue().Set(Integer::New(args.GetIsolate(), getpid()));
 }
 
-void just::Chdir(const FunctionCallbackInfo<Value> &args) {
+void NAMESPACE::Chdir(const FunctionCallbackInfo<Value> &args) {
   Isolate *isolate = args.GetIsolate();
   String::Utf8Value path(isolate, args[0]);
   args.GetReturnValue().Set(Integer::New(isolate, chdir(*path)));
 }
 
-void just::Builtins(const FunctionCallbackInfo<Value> &args) {
+void NAMESPACE::Builtins(const FunctionCallbackInfo<Value> &args) {
   Isolate *isolate = args.GetIsolate();
   Local<Context> context = isolate->GetCurrentContext();
   Local<Array> b = Array::New(isolate);
@@ -546,7 +537,7 @@ void just::Builtins(const FunctionCallbackInfo<Value> &args) {
   args.GetReturnValue().Set(b);
 }
 
-void just::Modules(const FunctionCallbackInfo<Value> &args) {
+void NAMESPACE::Modules(const FunctionCallbackInfo<Value> &args) {
   Isolate *isolate = args.GetIsolate();
   Local<Context> context = isolate->GetCurrentContext();
   Local<Array> m = Array::New(isolate);
@@ -558,18 +549,58 @@ void just::Modules(const FunctionCallbackInfo<Value> &args) {
   args.GetReturnValue().Set(m);
 }
 
-void just::AllocHRTime(const FunctionCallbackInfo<Value> &args) {
+void NAMESPACE::AllocHRTime(const FunctionCallbackInfo<Value> &args) {
   hrtimeptr = (uint64_t*)args[0].As<ArrayBuffer>()->GetBackingStore()->Data();
 }
 
-void just::HRTime(const FunctionCallbackInfo<Value> &args) {
-  *hrtimeptr = just::hrtime();
+void NAMESPACE::HRTime(const FunctionCallbackInfo<Value> &args) {
+  *hrtimeptr = NAMESPACE::hrtime();
 }
 
-void just::Init(Isolate* isolate, Local<ObjectTemplate> target) {
+void NAMESPACE::RunScript(const FunctionCallbackInfo<Value> &args) {
+  Isolate *isolate = args.GetIsolate();
+  Local<Context> context = isolate->GetEnteredOrMicrotaskContext();
+  TryCatch try_catch(isolate);
+  Local<String> source = args[0].As<String>();
+  Local<String> path = args[1].As<String>();
+  Local<v8::PrimitiveArray> opts =
+      v8::PrimitiveArray::New(isolate, 1);
+  opts->Set(isolate, 0, v8::Number::New(isolate, 1));
+  ScriptOrigin baseorigin(isolate, path, // resource name
+    0, // line offset
+    0,  // column offset
+    false, // is shared cross-origin
+    -1,  // script id
+    Local<Value>(), // source map url
+    false, // is opaque
+    false, // is wasm
+    false, // is module
+    opts);
+  Local<Script> script;
+  ScriptCompiler::Source basescript(source, baseorigin);
+  bool ok = ScriptCompiler::Compile(context, &basescript).ToLocal(&script);
+  if (!ok) {
+    if (try_catch.HasCaught() && !try_catch.HasTerminated()) {
+      try_catch.ReThrow();
+    }
+    return;
+  }
+  MaybeLocal<Value> result = script->Run(context);
+  if (try_catch.HasCaught() && !try_catch.HasTerminated()) {
+    try_catch.ReThrow();
+    return;
+  }
+  args.GetReturnValue().Set(result.ToLocalChecked());
+}
+
+void NAMESPACE::NextTick(const FunctionCallbackInfo<Value>& args) {
+  args.GetIsolate()->EnqueueMicrotask(args[0].As<Function>());
+}
+
+void NAMESPACE::Init(Isolate* isolate, Local<ObjectTemplate> target) {
   Local<ObjectTemplate> version = ObjectTemplate::New(isolate);
   SET_VALUE(isolate, version, "smol", String::NewFromUtf8Literal(isolate, 
-    JUST_VERSION));
+    VERSION));
   SET_VALUE(isolate, version, "v8", String::NewFromUtf8(isolate, 
     v8::V8::GetVersion()).ToLocalChecked());
   Local<ObjectTemplate> kernel = ObjectTemplate::New(isolate);
@@ -590,19 +621,15 @@ void just::Init(Isolate* isolate, Local<ObjectTemplate> target) {
     NewStringType::kNormal), kernel);
   SET_METHOD(isolate, target, "print", Print);
   SET_METHOD(isolate, target, "error", Error);
- 
-  // TODO: move these four to sys library
   SET_METHOD(isolate, target, "exit", Exit);
   SET_METHOD(isolate, target, "pid", PID);
   SET_METHOD(isolate, target, "chdir", Chdir);
+  SET_METHOD(isolate, target, "nextTick", NextTick);
   SET_METHOD(isolate, target, "sleep", Sleep);
   SET_METHOD(isolate, target, "allochrtime", AllocHRTime);
   SET_METHOD(isolate, target, "hrtime", HRTime);
-
   SET_MODULE(isolate, target, "version", version);
-  // TODO: move this to vm library
   SET_METHOD(isolate, target, "memoryUsage", MemoryUsage);
-
   SET_METHOD(isolate, target, "load", Load);
   SET_METHOD(isolate, target, "builtin", Builtin);
   SET_METHOD(isolate, target, "builtins", Builtins);

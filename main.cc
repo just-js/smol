@@ -1,27 +1,20 @@
-#include "just.h"
+#include "smol.h"
 #include "main.h"
 
 int main(int argc, char** argv) {
-  uint64_t start = just::hrtime();
   setvbuf(stdout, nullptr, _IONBF, 0);
   setvbuf(stderr, nullptr, _IONBF, 0);
-  std::unique_ptr<v8::Platform> platform = v8::platform::NewDefaultPlatform();
-  v8::V8::InitializePlatform(platform.get());
-  v8::V8::Initialize();
-  v8::V8::SetFlagsFromString(v8flags);
+  std::unique_ptr<Platform> platform = v8::platform::NewDefaultPlatform();
+  V8::InitializePlatform(platform.get());
+  V8::Initialize();
+  V8::SetFlagsFromString(v8flags);
   if (_v8flags_from_commandline == 1) {
-    v8::V8::SetFlagsFromCommandLine(&argc, argv, true);
+    V8::SetFlagsFromCommandLine(&argc, argv, true);
   }
   register_builtins();
-  if (_use_index) {
-    just::CreateIsolate(argc, argv, just_js, just_js_len, 
-      index_js, index_js_len, 
-      NULL, 0, start);
-  } else {
-    just::CreateIsolate(argc, argv, just_js, just_js_len, start);
-  }
-  v8::V8::Dispose();
-  v8::V8::ShutdownPlatform();
+  smol::CreateIsolate(argc, argv, smol_js, smol_js_len, smol::hrtime());
+  V8::Dispose();
+  V8::ShutdownPlatform();
   platform.reset();
   return 0;
 }

@@ -1,0 +1,7 @@
+*.o
+*.gz
+smol
+smol.debug
+deps
+node_modules
+scratch

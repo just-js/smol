@@ -1,18 +1,16 @@
-#ifndef JUST_H
-#define JUST_H
+#pragma once
 
 #include <v8.h>
 #include <libplatform/libplatform.h>
 #include <map>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/mman.h>
 #include <sys/utsname.h>
 #include <v8-fast-api-calls.h>
 
-namespace just {
+namespace smol {
 
-#define JUST_MICROS_PER_SEC 1e6
+#define MICROS_PER_SEC 1e6
 
 using v8::String;
 using v8::NewStringType;
@@ -94,7 +92,7 @@ v8::MaybeLocal<v8::Module> OnModuleInstantiate(v8::Local<v8::Context> context,
 int CreateIsolate(int argc, char** argv, 
   const char* main, unsigned int main_len,
   const char* js, unsigned int js_len, struct iovec* buf, int fd,
-  uint64_t start);
+  uint64_t start, const char* name_space, const char* scriptname);
 int CreateIsolate(int argc, char** argv,
   const char* main, unsigned int main_len, uint64_t start);
 void PrintStackTrace(Isolate* isolate, const TryCatch& try_catch);
@@ -121,8 +119,9 @@ void Builtin(const FunctionCallbackInfo<Value> &args);
 void MemoryUsage(const FunctionCallbackInfo<Value> &args);
 void Builtins(const FunctionCallbackInfo<Value> &args);
 void Modules(const FunctionCallbackInfo<Value> &args);
+void RunScript(const FunctionCallbackInfo<Value> &args);
+void NextTick(const FunctionCallbackInfo<Value> &args);
 
 void Init(Isolate* isolate, Local<ObjectTemplate> target);
 
 }
-#endif
